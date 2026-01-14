@@ -1,17 +1,17 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const analyticsController = require('../controllers/analyticsController');
-const { authenticate } = require('../middlewares/authMiddleware');
-const { requireRole } = require('../middlewares/roleMiddleware');
-const { validate } = require('../middlewares/validateMiddleware');
+const analyticsController = require("../controllers/analyticsController");
+const { authenticate } = require("../middlewares/authMiddleware");
+const { requireRole } = require("../middlewares/roleMiddleware");
+const { validate } = require("../middlewares/validateMiddleware");
 const {
   lowAttendanceSchema,
   semesterSummarySchema,
-} = require('../validators/analyticsValidators');
-const { ROLES } = require('../utils/constants');
+} = require("../validators/analyticsValidators");
+const { ROLES } = require("../utils/constants");
 
 router.get(
-  '/low-attendance',
+  "/low-attendance",
   authenticate,
   requireRole([ROLES.HOD]),
   validate(lowAttendanceSchema),
@@ -19,11 +19,25 @@ router.get(
 );
 
 router.get(
-  '/semester-summary',
+  "/semester-summary",
   authenticate,
   requireRole([ROLES.HOD]),
   validate(semesterSummarySchema),
   analyticsController.getSemesterSummary
+);
+
+router.get(
+  "/students-attendance",
+  authenticate,
+  requireRole([ROLES.HOD]),
+  analyticsController.getStudentsAttendance
+);
+
+router.get(
+  "/student-attendance-calendar/:studentId",
+  authenticate,
+  requireRole([ROLES.HOD]),
+  analyticsController.getStudentAttendanceCalendar
 );
 
 module.exports = router;

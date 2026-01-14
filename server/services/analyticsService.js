@@ -234,6 +234,167 @@ class AnalyticsService {
 
     return semesterStats;
   }
+
+  async getStudentsWithAttendance(filters = {}) {
+    const query = { role: ROLES.STUDENT };
+    const students = await User.find(query).sort({ name: 1 });
+
+    const studentsWithAttendance = [];
+
+    for (const student of students) {
+      const stats = await this.calculateStudentAttendancePercentage(
+        student._id,
+        filters.semester ? parseInt(filters.semester) : null
+      );
+
+      // If semester filter is provided, only include that semester's data
+      if (filters.semester) {
+        const semesterKey = filters.semester.toString();
+        if (stats[semesterKey]) {
+          studentsWithAttendance.push({
+            id: student._id,
+            name: student.name,
+            email: student.email,
+            rollNumber:
+              student.rollNumber ||
+              `${student.department.substring(0, 2).toUpperCase()}${student._id
+                .toString()
+                .substring(0, 3)}`,
+            semester: parseInt(semesterKey),
+            department: student.department,
+            attendancePercentage: parseFloat(
+              stats[semesterKey].attendancePercentage
+            ),
+            presentDays: stats[semesterKey].presentDays,
+            absentDays: stats[semesterKey].absentDays,
+            totalDays: stats[semesterKey].totalDays,
+          });
+        }
+      } else {
+        // Include all semesters
+        Object.keys(stats).forEach((sem) => {
+          studentsWithAttendance.push({
+            id: student._id,
+            name: student.name,
+            email: student.email,
+            rollNumber:
+              student.rollNumber ||
+              `${student.department.substring(0, 2).toUpperCase()}${student._id
+                .toString()
+                .substring(0, 3)}`,
+            semester: parseInt(sem),
+            department: student.department,
+            attendancePercentage: parseFloat(stats[sem].attendancePercentage),
+            presentDays: stats[sem].presentDays,
+            absentDays: stats[sem].absentDays,
+            totalDays: stats[sem].totalDays,
+          });
+        });
+      }
+    }
+
+    return { students: studentsWithAttendance };
+  }
+
+  async getStudentAttendanceCalendar(studentId, filters = {}) {
+    const student = await User.findById(studentId);
+    if (!student) {
+      const error = new Error("Student not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Convert studentId to ObjectId for proper comparison
+    const studentObjectId = student._id;
+
+    const query = {
+      "records.studentId": studentObjectId,
+    };
+
+    if (filters.semester) {
+      query.semester = parseInt(filters.semester);
+    }
+
+    const attendanceRecords = await Attendance.find(query).sort({ date: 1 });
+    const collegeLeaves = await CollegeLeave.find({});
+
+    const collegeLeaveDays = collegeLeaves.map(
+      (leave) => leave.date.toISOString().split("T")[0]
+    );
+
+    // Group records by date
+    const dateMap = new Map();
+    attendanceRecords.forEach((record) => {
+      const dateKey = record.date.toISOString().split("T")[0];
+
+      if (!dateMap.has(dateKey)) {
+        dateMap.set(dateKey, {
+          date: dateKey,
+          periods: [],
+          presentCount: 0,
+          absentCount: 0,
+        });
+      }
+
+      // Find the specific student's record in this attendance document
+      const studentRecord = record.records.find(
+        (r) => r.studentId.toString() === studentObjectId.toString()
+      );
+
+      // Only process if this student has a record for this period
+
+      if (studentRecord) {
+        const dayData = dateMap.get(dateKey);
+        dayData.periods.push({
+          period: record.period,
+          status: studentRecord.status,
+        });
+
+        if (studentRecord.status === ATTENDANCE_STATUS.PRESENT) {
+          dayData.presentCount += 1;
+        } else {
+          dayData.absentCount += 1;
+        }
+      }
+    });
+
+    // Convert to array and determine day status
+    const attendanceCalendar = [];
+    dateMap.forEach((dayData) => {
+      const totalPeriods = dayData.presentCount + dayData.absentCount;
+      let status = "not-marked";
+
+      if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
+        status =
+          dayData.presentCount >= DAY_PRESENT_THRESHOLD ? "present" : "absent";
+      } else if (totalPeriods > 0) {
+        status = "partial";
+      }
+
+      attendanceCalendar.push({
+        date: dayData.date,
+        status,
+        periods: dayData.periods.sort((a, b) => a.period - b.period),
+      });
+    });
+
+    return {
+      student: {
+        id: student._id,
+        name: student.name,
+        email: student.email,
+        rollNumber:
+          student.rollNumber ||
+          `${student.department.substring(0, 2).toUpperCase()}${student._id
+            .toString()
+            .substring(0, 3)}`,
+        semester: filters.semester ? parseInt(filters.semester) : null,
+        department: student.department,
+      },
+      attendanceRecords: attendanceCalendar,
+      collegeLeaveDays,
+    };
+  }
 }
 
 module.exports = new AnalyticsService();
