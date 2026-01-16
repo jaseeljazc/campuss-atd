@@ -272,22 +272,6 @@ class AttendanceService {
 
     return semesterStats;
   }
-
-  async checkAndLockAttendance() {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const result = await Attendance.updateMany(
-      {
-        createdAt: { $lt: oneHourAgo },
-        isLocked: false,
-      },
-      {
-        $set: { isLocked: true },
-      }
-    );
-
-    logger.info(`Locked ${result.modifiedCount} attendance records`);
-    return result.modifiedCount;
-  }
 }
 
 module.exports = new AttendanceService();
