@@ -237,61 +237,151 @@ class AnalyticsService {
 
   async getStudentsWithAttendance(filters = {}) {
     const query = { role: ROLES.STUDENT };
-    const students = await User.find(query).sort({ name: 1 });
 
+    // If semester filter is provided, only get students in that semester
+    if (filters.semester) {
+      query.semester = parseInt(filters.semester);
+    }
+
+    const students = await User.find(query).sort({ name: 1 }).lean();
+
+    // Fetch all attendance records in one query
+    const attendanceQuery = {};
+    if (filters.semester) {
+      attendanceQuery.semester = parseInt(filters.semester);
+    }
+
+    const attendanceRecords = await Attendance.find(attendanceQuery).lean();
+    const collegeLeaves = await CollegeLeave.find({}).lean();
+
+    const leaveDates = new Set(
+      collegeLeaves.map(
+        (leave) => new Date(leave.date).toISOString().split("T")[0]
+      )
+    );
+
+    // Build a map of student attendance data
+    const studentAttendanceMap = new Map();
+
+    attendanceRecords.forEach((record) => {
+      const dateKey = new Date(record.date).toISOString().split("T")[0];
+      const semesterKey = record.semester;
+
+      // Skip college leave days
+      if (leaveDates.has(dateKey)) {
+        return;
+      }
+
+      record.records.forEach((rec) => {
+        const studentId = rec.studentId.toString();
+
+        if (!studentAttendanceMap.has(studentId)) {
+          studentAttendanceMap.set(studentId, {});
+        }
+
+        const studentData = studentAttendanceMap.get(studentId);
+        if (!studentData[semesterKey]) {
+          studentData[semesterKey] = {};
+        }
+
+        if (!studentData[semesterKey][dateKey]) {
+          studentData[semesterKey][dateKey] = { present: 0, absent: 0 };
+        }
+
+        if (rec.status === ATTENDANCE_STATUS.PRESENT) {
+          studentData[semesterKey][dateKey].present += 1;
+        } else {
+          studentData[semesterKey][dateKey].absent += 1;
+        }
+      });
+    });
+
+    // Calculate stats for each student
     const studentsWithAttendance = [];
 
-    for (const student of students) {
-      const stats = await this.calculateStudentAttendancePercentage(
-        student._id,
-        filters.semester ? parseInt(filters.semester) : null
-      );
+    students.forEach((student) => {
+      const studentId = student._id.toString();
+      const studentData = studentAttendanceMap.get(studentId) || {};
 
       // If semester filter is provided, only include that semester's data
       if (filters.semester) {
         const semesterKey = filters.semester.toString();
-        if (stats[semesterKey]) {
-          studentsWithAttendance.push({
-            id: student._id,
-            name: student.name,
-            email: student.email,
-            rollNumber:
-              student.rollNumber ||
-              `${student.department.substring(0, 2).toUpperCase()}${student._id
-                .toString()
-                .substring(0, 3)}`,
-            semester: parseInt(semesterKey),
-            department: student.department,
-            attendancePercentage: parseFloat(
-              stats[semesterKey].attendancePercentage
-            ),
-            presentDays: stats[semesterKey].presentDays,
-            absentDays: stats[semesterKey].absentDays,
-            totalDays: stats[semesterKey].totalDays,
-          });
-        }
+        const semesterData = studentData[semesterKey] || {};
+
+        let totalDays = 0;
+        let presentDays = 0;
+        let absentDays = 0;
+
+        Object.values(semesterData).forEach((dayData) => {
+          const totalPeriods = dayData.present + dayData.absent;
+          if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
+            totalDays += 1;
+            if (dayData.present >= DAY_PRESENT_THRESHOLD) {
+              presentDays += 1;
+            } else {
+              absentDays += 1;
+            }
+          }
+        });
+
+        const attendancePercentage =
+          totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
+        studentsWithAttendance.push({
+          id: student._id,
+          name: student.name,
+          email: student.email,
+          rollNumber:
+            student.rollNumber ||
+            `CS2024${student._id.toString().slice(-6).toUpperCase()}`,
+          semester: parseInt(semesterKey),
+          department: student.department,
+          attendancePercentage: parseFloat(attendancePercentage.toFixed(2)),
+          presentDays,
+          absentDays,
+          totalDays,
+        });
       } else {
         // Include all semesters
-        Object.keys(stats).forEach((sem) => {
+        Object.keys(studentData).forEach((semesterKey) => {
+          const semesterData = studentData[semesterKey];
+
+          let totalDays = 0;
+          let presentDays = 0;
+          let absentDays = 0;
+
+          Object.values(semesterData).forEach((dayData) => {
+            const totalPeriods = dayData.present + dayData.absent;
+            if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
+              totalDays += 1;
+              if (dayData.present >= DAY_PRESENT_THRESHOLD) {
+                presentDays += 1;
+              } else {
+                absentDays += 1;
+              }
+            }
+          });
+
+          const attendancePercentage =
+            totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
           studentsWithAttendance.push({
             id: student._id,
             name: student.name,
             email: student.email,
             rollNumber:
               student.rollNumber ||
-              `${student.department.substring(0, 2).toUpperCase()}${student._id
-                .toString()
-                .substring(0, 3)}`,
-            semester: parseInt(sem),
+              `CS2024${student._id.toString().slice(-6).toUpperCase()}`,
+            semester: parseInt(semesterKey),
             department: student.department,
-            attendancePercentage: parseFloat(stats[sem].attendancePercentage),
-            presentDays: stats[sem].presentDays,
-            absentDays: stats[sem].absentDays,
-            totalDays: stats[sem].totalDays,
+            attendancePercentage: parseFloat(attendancePercentage.toFixed(2)),
+            presentDays,
+            absentDays,
+            totalDays,
           });
         });
       }
-    }
+    });
 
     return { students: studentsWithAttendance };
   }
