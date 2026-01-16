@@ -47,11 +47,22 @@ class AnalyticsController {
   async getStudentAttendanceCalendar(req, res, next) {
     try {
       const { studentId } = req.params;
+      const user = req.user; // From auth middleware
+      
+      // Students can only access their own attendance data
+      // Convert both to strings for comparison since one might be ObjectId
+      if (user.role === "student" && user.id.toString() !== studentId.toString()) {
+        const error = new Error("Unauthorized: You can only access your own attendance");
+        error.statusCode = 403;
+        throw error;
+      }
+      
       const filters = {
-        semester: req.query.semester,
+        semester: req.query.semester ? parseInt(req.query.semester) : undefined,
         startDate: req.query.startDate,
         endDate: req.query.endDate,
       };
+      
       const data = await analyticsService.getStudentAttendanceCalendar(
         studentId,
         filters

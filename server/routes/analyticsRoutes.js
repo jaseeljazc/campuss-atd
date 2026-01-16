@@ -36,7 +36,7 @@ router.get(
 router.get(
   "/student-attendance-calendar/:studentId",
   authenticate,
-  requireRole([ROLES.HOD]),
+  requireRole([ROLES.HOD, ROLES.STUDENT]),
   analyticsController.getStudentAttendanceCalendar
 );
 
