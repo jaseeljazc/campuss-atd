@@ -19,7 +19,7 @@ class CollegeLeaveService {
 
     if (existingAttendance) {
       throw new Error(
-        "Attendance already exists for this date. Cannot mark as college leave."
+        "Attendance already exists for this date. Cannot mark as college leave.",
       );
     }
 
@@ -43,7 +43,45 @@ class CollegeLeaveService {
     await collegeLeave.save();
 
     logger.info(
-      `College leave created: ${department} - ${date} by ${markedBy}`
+      `College leave created: ${department} - ${date} by ${markedBy}`,
+    );
+
+    return collegeLeave;
+  }
+
+  async markSemesterCollegeLeave(data, markedBy) {
+    const { semester, date, reason } = data;
+    const department = "Computer Science"; // Hardcoded department
+
+    // Use date directly as string (YYYY-MM-DD format)
+    // No Date conversion to avoid timezone issues
+
+    // Check if college leave already exists for this semester and date
+    const existingLeave = await CollegeLeave.findOne({
+      department,
+      semester,
+      date: date, // Direct string comparison
+    });
+
+    if (existingLeave) {
+      throw new Error(
+        `College leave already marked for Semester ${semester} on this date`,
+      );
+    }
+
+    // Create college leave with date as string
+    const collegeLeave = new CollegeLeave({
+      department,
+      semester,
+      date: date, // Store as string directly
+      reason,
+      markedBy,
+    });
+
+    await collegeLeave.save();
+
+    logger.info(
+      `Semester-specific college leave created: Semester ${semester} - ${date} by ${markedBy}`,
     );
 
     return collegeLeave;
@@ -52,6 +90,10 @@ class CollegeLeaveService {
   async getCollegeLeaves(filters = {}) {
     const query = {};
     // Department is always 'Computer Science', no filtering needed
+
+    if (filters.semester) {
+      query.semester = filters.semester;
+    }
 
     if (filters.startDate || filters.endDate) {
       query.date = {};
@@ -103,7 +145,7 @@ class CollegeLeaveService {
         logger.info(
           `Auto-created college leave: ${department} - ${
             dateObj.toISOString().split("T")[0]
-          }`
+          }`,
         );
         return collegeLeave;
       }

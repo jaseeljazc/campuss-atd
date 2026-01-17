@@ -18,7 +18,7 @@ class AnalyticsService {
     for (const student of students) {
       const stats = await this.calculateStudentAttendancePercentage(
         student._id,
-        filters.semester ? parseInt(filters.semester) : null
+        filters.semester ? parseInt(filters.semester) : null,
       );
 
       Object.keys(stats).forEach((semester) => {
@@ -42,7 +42,7 @@ class AnalyticsService {
     }
 
     return lowAttendanceStudents.sort(
-      (a, b) => a.attendancePercentage - b.attendancePercentage
+      (a, b) => a.attendancePercentage - b.attendancePercentage,
     );
   }
 
@@ -57,7 +57,7 @@ class AnalyticsService {
     const collegeLeaves = await CollegeLeave.find({});
 
     const leaveDates = new Set(
-      collegeLeaves.map((leave) => leave.date.toISOString().split("T")[0])
+      collegeLeaves.map((leave) => leave.date.toISOString().split("T")[0]),
     );
 
     // Get all students (all Computer Science)
@@ -105,7 +105,7 @@ class AnalyticsService {
           if (!semesterStats[sem]) {
             semesterStats[sem] = {
               totalStudents: students.filter((s) =>
-                filters.semester ? true : s.department === student.department
+                filters.semester ? true : s.department === student.department,
               ).length,
               totalDays: 0,
               averageAttendance: 0,
@@ -172,7 +172,7 @@ class AnalyticsService {
     const collegeLeaves = await CollegeLeave.find({});
 
     const leaveDates = new Set(
-      collegeLeaves.map((leave) => leave.date.toISOString().split("T")[0])
+      collegeLeaves.map((leave) => leave.date.toISOString().split("T")[0]),
     );
 
     const dateMap = new Map();
@@ -188,7 +188,7 @@ class AnalyticsService {
       }
 
       const studentRecord = record.records.find(
-        (r) => r.studentId.toString() === studentId.toString()
+        (r) => r.studentId.toString() === studentId.toString(),
       );
       if (studentRecord) {
         if (studentRecord.status === ATTENDANCE_STATUS.PRESENT) {
@@ -256,8 +256,8 @@ class AnalyticsService {
 
     const leaveDates = new Set(
       collegeLeaves.map(
-        (leave) => new Date(leave.date).toISOString().split("T")[0]
-      )
+        (leave) => new Date(leave.date).toISOString().split("T")[0],
+      ),
     );
 
     // Build a map of student attendance data
@@ -427,7 +427,7 @@ class AnalyticsService {
     };
 
     const allSemesterRecords = await Attendance.find(
-      semesterAttendanceQuery
+      semesterAttendanceQuery,
     ).sort({ date: 1 });
 
     // Fetch attendance records specifically for this student
@@ -437,26 +437,40 @@ class AnalyticsService {
     };
 
     const studentAttendanceRecords = await Attendance.find(
-      studentAttendanceQuery
+      studentAttendanceQuery,
     ).sort({ date: 1 });
 
-    // Fetch college leaves
-    const collegeLeaves = await CollegeLeave.find({});
-    const collegeLeaveDays = collegeLeaves.map(
-      (leave) => leave.date.toISOString().split("T")[0]
-    );
+    // Fetch college leaves for this semester
+    const collegeLeaveQuery = { semester: semesterToQuery };
+    const collegeLeaves = await CollegeLeave.find(collegeLeaveQuery);
+
+    // Helper function to format date without timezone issues
+    const formatDateUTC = (date) => {
+      const d = new Date(date);
+      const year = d.getUTCFullYear();
+      const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const day = String(d.getUTCDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    // College Leave dates are now stored as strings, use them directly
+    const collegeLeaveDays = collegeLeaves.map((leave) => ({
+      date: leave.date, // Already a string in YYYY-MM-DD format
+      semester: leave.semester,
+      reason: leave.reason,
+    }));
 
     // Build a set of dates where ANY attendance was marked for this semester
     const semesterAttendanceDates = new Set();
     allSemesterRecords.forEach((record) => {
-      const dateKey = record.date.toISOString().split("T")[0];
+      const dateKey = formatDateUTC(record.date);
       semesterAttendanceDates.add(dateKey);
     });
 
     // Build a map of student's specific attendance records by date
     const studentDateMap = new Map();
     studentAttendanceRecords.forEach((record) => {
-      const dateKey = record.date.toISOString().split("T")[0];
+      const dateKey = formatDateUTC(record.date);
 
       if (!studentDateMap.has(dateKey)) {
         studentDateMap.set(dateKey, {
@@ -469,7 +483,7 @@ class AnalyticsService {
 
       // Find the specific student's record in this attendance document
       const studentRecord = record.records.find(
-        (r) => r.studentId.toString() === studentObjectId.toString()
+        (r) => r.studentId.toString() === studentObjectId.toString(),
       );
 
       if (studentRecord) {
@@ -489,8 +503,8 @@ class AnalyticsService {
 
     // Helper function to check if a date is a weekend
     const isWeekend = (dateStr) => {
-      const date = new Date(dateStr);
-      const day = date.getDay();
+      const date = new Date(dateStr + "T00:00:00Z"); // Parse as UTC
+      const day = date.getUTCDay();
       return day === 0 || day === 6; // Sunday = 0, Saturday = 6
     };
 
@@ -507,15 +521,18 @@ class AnalyticsService {
       const endDate = new Date(lastDate);
 
       while (currentDate <= endDate) {
-        const dateKey = currentDate.toISOString().split("T")[0];
+        const dateKey = formatDateUTC(currentDate);
 
         // Skip weekends
         if (!isWeekend(dateKey)) {
           let status = "college-leave";
           let periods = [];
 
-          // Check if this date is a college leave day
-          if (collegeLeaveDays.includes(dateKey)) {
+          // Check if this date is a college leave day for this semester
+          const collegeLeaveForDate = collegeLeaveDays.find(
+            (cl) => cl.date === dateKey,
+          );
+          if (collegeLeaveForDate) {
             status = "college-leave";
             periods = [];
           }
@@ -529,7 +546,7 @@ class AnalyticsService {
             // Create all 5 periods, auto-filling unmarked ones as absent
             const allPeriods = [1, 2, 3, 4, 5].map((periodNum) => {
               const markedPeriod = markedPeriods.find(
-                (p) => p.period === periodNum
+                (p) => p.period === periodNum,
               );
               return {
                 period: periodNum,
@@ -541,7 +558,7 @@ class AnalyticsService {
 
             // Count present periods
             const presentCount = allPeriods.filter(
-              (p) => p.status === ATTENDANCE_STATUS.PRESENT
+              (p) => p.status === ATTENDANCE_STATUS.PRESENT,
             ).length;
 
             // Calculate daily status based on 3+ present periods threshold
