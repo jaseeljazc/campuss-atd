@@ -440,9 +440,15 @@ class AnalyticsService {
       studentAttendanceQuery,
     ).sort({ date: 1 });
 
-    // Fetch college leaves for this semester
-    const collegeLeaveQuery = { semester: semesterToQuery };
-    const collegeLeaves = await CollegeLeave.find(collegeLeaveQuery);
+    // Fetch BOTH leave types
+    const CollegeLeave = require("../models/CollegeLeave");
+    const ClassLeave = require("../models/ClassLeave");
+
+    // Fetch global college leaves (no semester filter)
+    const collegeLeaves = await CollegeLeave.find({});
+
+    // Fetch class leaves for this semester
+    const classLeaves = await ClassLeave.find({ semester: semesterToQuery });
 
     // Helper function to format date without timezone issues
     const formatDateUTC = (date) => {
@@ -453,9 +459,15 @@ class AnalyticsService {
       return `${year}-${month}-${day}`;
     };
 
-    // College Leave dates are now stored as strings, use them directly
+    // College Leave dates (global, affects all semesters)
     const collegeLeaveDays = collegeLeaves.map((leave) => ({
-      date: leave.date, // Already a string in YYYY-MM-DD format
+      date: leave.date, // Already a string
+      reason: leave.reason,
+    }));
+
+    // Class Leave dates (semester-specific)
+    const classLeaveDays = classLeaves.map((leave) => ({
+      date: leave.date, // Already a string
       semester: leave.semester,
       reason: leave.reason,
     }));
@@ -528,12 +540,19 @@ class AnalyticsService {
           let status = "college-leave";
           let periods = [];
 
-          // Check if this date is a college leave day for this semester
+          // Priority check: College Leave > Class Leave > Attendance
+
+          // 1. Check if this date is a COLLEGE LEAVE (global, highest priority)
           const collegeLeaveForDate = collegeLeaveDays.find(
             (cl) => cl.date === dateKey,
           );
           if (collegeLeaveForDate) {
             status = "college-leave";
+            periods = [];
+          }
+          // 2. Check if this date is a CLASS LEAVE for this semester
+          else if (classLeaveDays.find((cl) => cl.date === dateKey)) {
+            status = "class-leave";
             periods = [];
           }
           // Check if ANY attendance was marked for this semester on this date
@@ -597,7 +616,8 @@ class AnalyticsService {
         department: student.department,
       },
       attendanceRecords: attendanceCalendar,
-      collegeLeaveDays,
+      collegeLeaveDays, // Global leaves
+      classLeaveDays, // Semester-specific leaves
     };
   }
 }
