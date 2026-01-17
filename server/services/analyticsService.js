@@ -533,14 +533,16 @@ class AnalyticsService {
                     ? "present"
                     : "absent";
               } else if (totalPeriods > 0) {
-                status = "partial";
+                // Student was marked in some periods but not enough for full day
+                // Check if they have any present marks
+                status = dayData.presentCount > 0 ? "partial" : "absent";
               }
 
               periods = dayData.periods.sort((a, b) => a.period - b.period);
             } else {
               // Attendance was marked for semester, but this student wasn't marked
-              // Automatically assign "partial" status
-              status = "partial";
+              // Automatically mark as ABSENT (not partial)
+              status = "absent";
               periods = [];
             }
           } else {
