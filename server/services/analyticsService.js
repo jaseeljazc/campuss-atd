@@ -303,84 +303,59 @@ class AnalyticsService {
       const studentId = student._id.toString();
       const studentData = studentAttendanceMap.get(studentId) || {};
 
-      // If semester filter is provided, only include that semester's data
-      if (filters.semester) {
-        const semesterKey = filters.semester.toString();
-        const semesterData = studentData[semesterKey] || {};
+      // STRICT: Only look at the student's actual semester
+      // If a filter is applied, the query above ensures query.semester matches student.semester
+      // so we can just use student.semester here safely.
+      const targetSemester = student.semester;
 
-        let totalDays = 0;
-        let presentDays = 0;
-        let absentDays = 0;
-
-        Object.values(semesterData).forEach((dayData) => {
-          const totalPeriods = dayData.present + dayData.absent;
-          if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-            totalDays += 1;
-            if (dayData.present >= DAY_PRESENT_THRESHOLD) {
-              presentDays += 1;
-            } else {
-              absentDays += 1;
-            }
-          }
-        });
-
-        const attendancePercentage =
-          totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
-
-        studentsWithAttendance.push({
-          id: student._id,
-          name: student.name,
-          email: student.email,
-          rollNumber:
-            student.rollNumber ||
-            `CS2024${student._id.toString().slice(-6).toUpperCase()}`,
-          semester: parseInt(semesterKey),
-          department: student.department,
-          attendancePercentage: parseFloat(attendancePercentage.toFixed(2)),
-          presentDays,
-          absentDays,
-          totalDays,
-        });
-      } else {
-        // Include all semesters
-        Object.keys(studentData).forEach((semesterKey) => {
-          const semesterData = studentData[semesterKey];
-
-          let totalDays = 0;
-          let presentDays = 0;
-          let absentDays = 0;
-
-          Object.values(semesterData).forEach((dayData) => {
-            const totalPeriods = dayData.present + dayData.absent;
-            if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-              totalDays += 1;
-              if (dayData.present >= DAY_PRESENT_THRESHOLD) {
-                presentDays += 1;
-              } else {
-                absentDays += 1;
-              }
-            }
-          });
-
-          const attendancePercentage =
-            totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
-
-          studentsWithAttendance.push({
-            id: student._id,
-            name: student.name,
-            email: student.email,
-            rollNumber:
-              student.rollNumber ||
-              `CS2024${student._id.toString().slice(-6).toUpperCase()}`,
-            semester: parseInt(semesterKey),
-            department: student.department,
-            attendancePercentage: parseFloat(attendancePercentage.toFixed(2)),
-            presentDays,
-            absentDays,
-            totalDays,
-          });
-        });
+      // STRICT: Filter validation
+      if (filters.semester && targetSemester !== parseInt(filters.semester)) {
+        return;
       }
+
+      if (!targetSemester) return; // Skip if student has no semester assigned
+
+      const semesterKey = targetSemester.toString();
+      const semesterData = studentData[semesterKey] || {};
+
+      let totalDays = 0;
+      let presentDays = 0;
+      let absentDays = 0;
+
+      Object.values(semesterData).forEach((dayData) => {
+        const totalPeriods = dayData.present + dayData.absent;
+        if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
+          totalDays += 1;
+          if (dayData.present >= DAY_PRESENT_THRESHOLD) {
+            presentDays += 1;
+          } else {
+            absentDays += 1;
+          }
+        }
+      });
+
+      // STRICT: Exclude students with no valid attendance days
+      if (totalDays === 0) {
+        return;
+      }
+
+      const attendancePercentage =
+        totalDays > 0 ? (presentDays / totalDays) * 100 : 0;
+
+      studentsWithAttendance.push({
+        id: student._id,
+        name: student.name,
+        email: student.email,
+        rollNumber:
+          student.rollNumber ||
+          `CS2024${student._id.toString().slice(-6).toUpperCase()}`,
+        semester: targetSemester,
+        department: student.department,
+        attendancePercentage: parseFloat(attendancePercentage.toFixed(2)),
+        presentDays,
+        absentDays,
+        totalDays,
+      });
     });
 
     return { students: studentsWithAttendance };

@@ -13,31 +13,31 @@ const { ROLES } = require("../utils/constants");
 router.get(
   "/low-attendance",
   authenticate,
-  requireRole([ROLES.HOD]),
+  requireRole([ROLES.HOD, ROLES.TEACHER]),
   validate(lowAttendanceSchema),
-  analyticsController.getLowAttendanceStudents
+  analyticsController.getLowAttendanceStudents,
 );
 
 router.get(
   "/semester-summary",
   authenticate,
-  requireRole([ROLES.HOD]),
+  requireRole([ROLES.HOD, ROLES.TEACHER]),
   validate(semesterSummarySchema),
-  analyticsController.getSemesterSummary
+  analyticsController.getSemesterSummary,
 );
 
 router.get(
   "/students-attendance",
   authenticate,
-  requireRole([ROLES.HOD]),
-  analyticsController.getStudentsAttendance
+  requireRole([ROLES.HOD, ROLES.TEACHER]),
+  analyticsController.getStudentsAttendance,
 );
 
 router.get(
   "/student-attendance-calendar/:studentId",
   authenticate,
-  requireRole([ROLES.HOD, ROLES.STUDENT]),
-  analyticsController.getStudentAttendanceCalendar
+  requireRole([ROLES.HOD, ROLES.TEACHER, ROLES.STUDENT]),
+  analyticsController.getStudentAttendanceCalendar,
 );
 
 module.exports = router;
