@@ -511,43 +511,45 @@ class AnalyticsService {
 
         // Skip weekends
         if (!isWeekend(dateKey)) {
-          let status = "not-marked";
+          let status = "college-leave";
           let periods = [];
 
           // Check if this date is a college leave day
           if (collegeLeaveDays.includes(dateKey)) {
             status = "college-leave";
+            periods = [];
           }
           // Check if ANY attendance was marked for this semester on this date
           else if (semesterAttendanceDates.has(dateKey)) {
             // Attendance was marked for the semester on this day
-            // Check if this specific student was marked
-            if (studentDateMap.has(dateKey)) {
-              // Student has explicit attendance records - use teacher-marked status
-              const dayData = studentDateMap.get(dateKey);
-              const totalPeriods = dayData.presentCount + dayData.absentCount;
+            // Build complete period array with auto-absent for unmarked periods
 
-              if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-                status =
-                  dayData.presentCount >= DAY_PRESENT_THRESHOLD
-                    ? "present"
-                    : "absent";
-              } else if (totalPeriods > 0) {
-                // Student was marked in some periods but not enough for full day
-                // Check if they have any present marks
-                status = dayData.presentCount > 0 ? "partial" : "absent";
-              }
+            const markedPeriods = studentDateMap.get(dateKey)?.periods || [];
 
-              periods = dayData.periods.sort((a, b) => a.period - b.period);
-            } else {
-              // Attendance was marked for semester, but this student wasn't marked
-              // Automatically mark as ABSENT (not partial)
-              status = "absent";
-              periods = [];
-            }
+            // Create all 5 periods, auto-filling unmarked ones as absent
+            const allPeriods = [1, 2, 3, 4, 5].map((periodNum) => {
+              const markedPeriod = markedPeriods.find(
+                (p) => p.period === periodNum
+              );
+              return {
+                period: periodNum,
+                status: markedPeriod
+                  ? markedPeriod.status
+                  : ATTENDANCE_STATUS.ABSENT,
+              };
+            });
+
+            // Count present periods
+            const presentCount = allPeriods.filter(
+              (p) => p.status === ATTENDANCE_STATUS.PRESENT
+            ).length;
+
+            // Calculate daily status based on 3+ present periods threshold
+            status =
+              presentCount >= DAY_PRESENT_THRESHOLD ? "present" : "absent";
+            periods = allPeriods;
           } else {
             // No attendance was marked for this semester on this date
-            // Automatically assign "college-leave" status
             status = "college-leave";
             periods = [];
           }
