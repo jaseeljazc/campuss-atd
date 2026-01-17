@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { apiService } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { Check, X, Clock, Calendar } from "lucide-react";
+import { Check, X, Clock, Calendar, AlertTriangle } from "lucide-react";
 import {
   format,
   startOfMonth,
@@ -15,7 +15,7 @@ import {
 
 interface AttendanceRecord {
   date: string;
-  status: "present" | "absent" | "college-leave";
+  status: "present" | "absent" | "college-leave" | "class-leave";
   periods: Array<{
     period: number;
     status: "present" | "absent";
@@ -237,6 +237,8 @@ export function AttendanceCalendar({
                 status === "absent" && "bg-absent-light text-absent",
                 status === "college-leave" &&
                   "bg-blue-100 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400",
+                status === "class-leave" &&
+                  "bg-amber-100 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400",
               )}
             >
               <span>{format(day, "d")}</span>
@@ -248,6 +250,9 @@ export function AttendanceCalendar({
               )}
               {status === "college-leave" && (
                 <Clock className="w-3 h-3 absolute bottom-0.5" />
+              )}
+              {status === "class-leave" && (
+                <AlertTriangle className="w-3 h-3 absolute bottom-0.5" />
               )}
             </button>
           );

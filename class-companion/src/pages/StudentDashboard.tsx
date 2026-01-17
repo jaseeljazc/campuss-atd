@@ -18,6 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageLoader } from "@/components/ui/loader";
 
 interface AttendanceRecord {
   date: string;
@@ -48,7 +49,6 @@ export function StudentDashboard() {
   const [collegeLeaveDays, setCollegeLeaveDays] = useState<CollegeLeaveDay[]>(
     [],
   );
-  const [isLoading, setIsLoading] = useState(true);
 
   const currentStudent = user
     ? {
@@ -67,7 +67,6 @@ export function StudentDashboard() {
 
     const fetchAttendanceData = async () => {
       try {
-        setIsLoading(true);
         console.log("Fetching attendance for student:", {
           id: currentStudent.id,
           semester: currentStudent.semester,
@@ -85,28 +84,10 @@ export function StudentDashboard() {
         );
 
         console.log("Dashboard fetched calendar data:", data);
-        console.log(
-          "Attendance records count:",
-          data.attendanceRecords?.length || 0,
-        );
-        console.log(
-          "College leave days count:",
-          data.collegeLeaveDays?.length || 0,
-        );
-        console.log("Sample records:", data.attendanceRecords?.slice(0, 3));
 
         const records = data.attendanceRecords || [];
         const classLeaves = data.classLeaveDays || [];
         const collegeLeaves = data.collegeLeaveDays || [];
-
-        console.log(
-          "Setting state with records:",
-          records.length,
-          "class leaves:",
-          classLeaves.length,
-          "college leaves:",
-          collegeLeaves.length,
-        );
 
         setAttendanceRecords(records);
         setClassLeaveDays(classLeaves);
@@ -117,8 +98,6 @@ export function StudentDashboard() {
         // Set empty arrays on error to prevent UI issues
         setAttendanceRecords([]);
         setCollegeLeaveDays([]);
-      } finally {
-        setIsLoading(false);
       }
     };
 
@@ -236,14 +215,7 @@ export function StudentDashboard() {
   const handleNextMonth = () => setSelectedDate(addMonths(selectedDate, 1));
 
   if (!currentStudent) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <div className="container py-6 text-center">
-          <p>Student not found</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   const isLowAttendance = attendancePercentage < 75;
@@ -286,25 +258,21 @@ export function StudentDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <StatCard
             title="Attendance"
-            value={isLoading ? "..." : `${attendancePercentage}%`}
+            value={`${attendancePercentage}%`}
             subtitle={
-              isLoading
-                ? "Loading..."
-                : isLowAttendance
-                  ? "Below minimum requirement"
-                  : totalDays === 0
-                    ? "No attendance data"
-                    : "Great job!"
+              isLowAttendance
+                ? "Below minimum requirement"
+                : totalDays === 0
+                  ? "No attendance data"
+                  : "Great job!"
             }
             icon={<TrendingUp className="w-5 h-5" />}
             variant={
-              isLoading
-                ? "default"
-                : isLowAttendance
-                  ? "danger"
-                  : totalDays === 0
-                    ? "default"
-                    : "success"
+              isLowAttendance
+                ? "danger"
+                : totalDays === 0
+                  ? "default"
+                  : "success"
             }
           />
           <StatCard
@@ -340,25 +308,13 @@ export function StudentDashboard() {
               </span>
               <span className="xs:hidden">Sem {currentStudent.semester}</span>
             </h3>
-            <span className="text-xl sm:text-2xl font-bold font-display">
-              {isLoading ? "..." : `${attendancePercentage}%`}
-            </span>
+            <span className="text-xl sm:text-2xl font-bold font-display"></span>
           </div>
-          {!isLoading && (
-            <ProgressBar
-              value={attendancePercentage}
-              size="lg"
-              showLabel={false}
-            />
-          )}
-          {isLoading && (
-            <div className="h-2 bg-muted rounded-full">
-              <div
-                className="h-full bg-primary/20 rounded-full animate-pulse"
-                style={{ width: "50%" }}
-              />
-            </div>
-          )}
+          <ProgressBar
+            value={attendancePercentage}
+            size="lg"
+            showLabel={false}
+          />
           <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between mt-3 gap-1 xs:gap-0 text-xs sm:text-sm">
             <span className="text-muted-foreground">Minimum Required: 75%</span>
             <span

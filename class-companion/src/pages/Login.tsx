@@ -14,6 +14,7 @@ import { GraduationCap, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { PageLoader } from "@/components/ui/loader";
 
 export function Login() {
   const [email, setEmail] = useState("");
@@ -39,12 +40,16 @@ export function Login() {
     }
   };
 
+  if (isLoading) {
+    return <PageLoader message="Signing in..." />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,hsl(var(--primary)/0.1),transparent_50%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,hsl(var(--present)/0.1),transparent_50%)]" />
 
-      <Card className="w-full max-w-md relative z-10 shadow-elevated">
+      <Card className="w-full max-w-md relative z-10 shadow-elevated pb-10">
         <CardHeader className="space-y-3 sm:space-y-4 text-center px-4 sm:px-6">
           <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-primary/10 flex items-center justify-center">
             <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
@@ -107,23 +112,6 @@ export function Login() {
               )}
             </Button>
           </form>
-
-          <div className="mt-6 pt-6 border-t space-y-2">
-            <p className="text-xs text-center text-muted-foreground">
-              <strong>HOD Login:</strong> hod@gmail.com / 123456
-            </p>
-            <div className="text-center text-sm">
-              <span className="text-muted-foreground">
-                Don't have an account?{" "}
-              </span>
-              <Link
-                to="/signup"
-                className="text-primary hover:underline font-medium"
-              >
-                Sign up
-              </Link>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>

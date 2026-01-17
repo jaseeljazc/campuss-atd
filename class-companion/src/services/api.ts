@@ -5,6 +5,8 @@ const API_BASE_URL =
 
 class ApiService {
   private api: AxiosInstance;
+  private activeRequestCount: number = 0;
+  private loadingListener: ((isLoading: boolean) => void) | null = null;
 
   constructor() {
     this.api = axios.create({
@@ -14,9 +16,12 @@ class ApiService {
       },
     });
 
-    // Request interceptor to attach access token
+    // Request interceptor
     this.api.interceptors.request.use(
       (config) => {
+        this.activeRequestCount++;
+        this.notifyLoading();
+
         const token = localStorage.getItem("accessToken");
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -24,14 +29,26 @@ class ApiService {
         return config;
       },
       (error) => {
+        this.activeRequestCount--;
+        this.notifyLoading();
         return Promise.reject(error);
       },
     );
 
     // Response interceptor to handle token refresh
     this.api.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        this.activeRequestCount--;
+        this.notifyLoading();
+        return response;
+      },
       async (error: AxiosError) => {
+        // Only decrement if we are NOT retrying, otherwise the retry will increment it again (or keep it open)
+        // Actually, the retry creates a NEW request which increments it.
+        // So we should decrement for this failure.
+        this.activeRequestCount--;
+        this.notifyLoading();
+
         const originalRequest = error.config as any;
 
         // If 401 and not already retrying, try to refresh token
@@ -71,6 +88,20 @@ class ApiService {
         return Promise.reject(error);
       },
     );
+  }
+
+  setLoadingListener(listener: (isLoading: boolean) => void) {
+    this.loadingListener = listener;
+  }
+
+  private notifyLoading() {
+    if (this.loadingListener) {
+      // Use setTimeout to avoid flickering for very fast requests
+      // But user requested "no artificial delay", so we will be direct.
+      // However, to batch updates if multiple start at once, we can use a microtask or just call directly.
+      // Calling directly is safest for "immediate" feedback.
+      this.loadingListener(this.activeRequestCount > 0);
+    }
   }
 
   // Auth endpoints

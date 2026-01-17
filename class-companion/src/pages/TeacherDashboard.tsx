@@ -32,11 +32,12 @@ import {
   BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
 import { StudentAttendanceList } from "@/components/analytics/StudentAttendanceList";
 import { StudentAttendanceCalendar } from "@/components/analytics/StudentAttendanceCalendar";
 
 export function TeacherDashboard() {
-  const { attendanceRecords, students, isLoading } = useApp();
+  const { attendanceRecords, students } = useApp();
   const { user } = useAuth();
 
   const [selectedDepartment, setSelectedDepartment] = useState(
