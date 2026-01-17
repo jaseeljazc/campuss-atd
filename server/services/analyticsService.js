@@ -397,28 +397,69 @@ class AnalyticsService {
     // Convert studentId to ObjectId for proper comparison
     const studentObjectId = student._id;
 
-    const query = {
-      "records.studentId": studentObjectId,
-    };
+    // Determine the semester to query
+    const semesterToQuery = filters.semester
+      ? parseInt(filters.semester)
+      : student.semester;
 
-    if (filters.semester) {
-      query.semester = parseInt(filters.semester);
+    if (!semesterToQuery) {
+      return {
+        student: {
+          id: student._id,
+          name: student.name,
+          email: student.email,
+          rollNumber:
+            student.rollNumber ||
+            `${student.department.substring(0, 2).toUpperCase()}${student._id
+              .toString()
+              .substring(0, 3)}`,
+          semester: null,
+          department: student.department,
+        },
+        attendanceRecords: [],
+        collegeLeaveDays: [],
+      };
     }
 
-    const attendanceRecords = await Attendance.find(query).sort({ date: 1 });
-    const collegeLeaves = await CollegeLeave.find({});
+    // Fetch ALL attendance records for this semester (not just for this student)
+    const semesterAttendanceQuery = {
+      semester: semesterToQuery,
+    };
 
+    const allSemesterRecords = await Attendance.find(
+      semesterAttendanceQuery
+    ).sort({ date: 1 });
+
+    // Fetch attendance records specifically for this student
+    const studentAttendanceQuery = {
+      "records.studentId": studentObjectId,
+      semester: semesterToQuery,
+    };
+
+    const studentAttendanceRecords = await Attendance.find(
+      studentAttendanceQuery
+    ).sort({ date: 1 });
+
+    // Fetch college leaves
+    const collegeLeaves = await CollegeLeave.find({});
     const collegeLeaveDays = collegeLeaves.map(
       (leave) => leave.date.toISOString().split("T")[0]
     );
 
-    // Group records by date
-    const dateMap = new Map();
-    attendanceRecords.forEach((record) => {
+    // Build a set of dates where ANY attendance was marked for this semester
+    const semesterAttendanceDates = new Set();
+    allSemesterRecords.forEach((record) => {
+      const dateKey = record.date.toISOString().split("T")[0];
+      semesterAttendanceDates.add(dateKey);
+    });
+
+    // Build a map of student's specific attendance records by date
+    const studentDateMap = new Map();
+    studentAttendanceRecords.forEach((record) => {
       const dateKey = record.date.toISOString().split("T")[0];
 
-      if (!dateMap.has(dateKey)) {
-        dateMap.set(dateKey, {
+      if (!studentDateMap.has(dateKey)) {
+        studentDateMap.set(dateKey, {
           date: dateKey,
           periods: [],
           presentCount: 0,
@@ -431,10 +472,8 @@ class AnalyticsService {
         (r) => r.studentId.toString() === studentObjectId.toString()
       );
 
-      // Only process if this student has a record for this period
-
       if (studentRecord) {
-        const dayData = dateMap.get(dateKey);
+        const dayData = studentDateMap.get(dateKey);
         dayData.periods.push({
           period: record.period,
           status: studentRecord.status,
@@ -448,25 +487,80 @@ class AnalyticsService {
       }
     });
 
-    // Convert to array and determine day status
+    // Helper function to check if a date is a weekend
+    const isWeekend = (dateStr) => {
+      const date = new Date(dateStr);
+      const day = date.getDay();
+      return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+    };
+
+    // Build complete calendar with all dates in the semester's range
     const attendanceCalendar = [];
-    dateMap.forEach((dayData) => {
-      const totalPeriods = dayData.presentCount + dayData.absentCount;
-      let status = "not-marked";
 
-      if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-        status =
-          dayData.presentCount >= DAY_PRESENT_THRESHOLD ? "present" : "absent";
-      } else if (totalPeriods > 0) {
-        status = "partial";
+    if (allSemesterRecords.length > 0) {
+      // Get date range from semester attendance
+      const firstDate = allSemesterRecords[0].date;
+      const lastDate = allSemesterRecords[allSemesterRecords.length - 1].date;
+
+      // Iterate through all dates in the range
+      const currentDate = new Date(firstDate);
+      const endDate = new Date(lastDate);
+
+      while (currentDate <= endDate) {
+        const dateKey = currentDate.toISOString().split("T")[0];
+
+        // Skip weekends
+        if (!isWeekend(dateKey)) {
+          let status = "not-marked";
+          let periods = [];
+
+          // Check if this date is a college leave day
+          if (collegeLeaveDays.includes(dateKey)) {
+            status = "college-leave";
+          }
+          // Check if ANY attendance was marked for this semester on this date
+          else if (semesterAttendanceDates.has(dateKey)) {
+            // Attendance was marked for the semester on this day
+            // Check if this specific student was marked
+            if (studentDateMap.has(dateKey)) {
+              // Student has explicit attendance records - use teacher-marked status
+              const dayData = studentDateMap.get(dateKey);
+              const totalPeriods = dayData.presentCount + dayData.absentCount;
+
+              if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
+                status =
+                  dayData.presentCount >= DAY_PRESENT_THRESHOLD
+                    ? "present"
+                    : "absent";
+              } else if (totalPeriods > 0) {
+                status = "partial";
+              }
+
+              periods = dayData.periods.sort((a, b) => a.period - b.period);
+            } else {
+              // Attendance was marked for semester, but this student wasn't marked
+              // Automatically assign "partial" status
+              status = "partial";
+              periods = [];
+            }
+          } else {
+            // No attendance was marked for this semester on this date
+            // Automatically assign "college-leave" status
+            status = "college-leave";
+            periods = [];
+          }
+
+          attendanceCalendar.push({
+            date: dateKey,
+            status,
+            periods,
+          });
+        }
+
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
       }
-
-      attendanceCalendar.push({
-        date: dayData.date,
-        status,
-        periods: dayData.periods.sort((a, b) => a.period - b.period),
-      });
-    });
+    }
 
     return {
       student: {
@@ -478,7 +572,7 @@ class AnalyticsService {
           `${student.department.substring(0, 2).toUpperCase()}${student._id
             .toString()
             .substring(0, 3)}`,
-        semester: filters.semester ? parseInt(filters.semester) : null,
+        semester: semesterToQuery,
         department: student.department,
       },
       attendanceRecords: attendanceCalendar,
