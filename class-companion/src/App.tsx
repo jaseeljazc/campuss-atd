@@ -20,16 +20,20 @@ function LoginRedirect() {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   if (isAuthenticated && user) {
     switch (user.role) {
-      case 'hod':
+      case "hod":
         return <Navigate to="/hod" replace />;
-      case 'teacher':
+      case "teacher":
         return <Navigate to="/teacher" replace />;
-      case 'student':
+      case "student":
         return <Navigate to="/student" replace />;
       default:
         return <Navigate to="/login" replace />;
@@ -44,16 +48,20 @@ function SignupRedirect() {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   if (isAuthenticated && user) {
     switch (user.role) {
-      case 'hod':
+      case "hod":
         return <Navigate to="/hod" replace />;
-      case 'teacher':
+      case "teacher":
         return <Navigate to="/teacher" replace />;
-      case 'student':
+      case "student":
         return <Navigate to="/student" replace />;
       default:
         return <Navigate to="/login" replace />;
@@ -68,16 +76,20 @@ function RootRedirect() {
   const { isAuthenticated, user, isLoading } = useAuth();
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   if (isAuthenticated && user) {
     switch (user.role) {
-      case 'hod':
+      case "hod":
         return <Navigate to="/hod" replace />;
-      case 'teacher':
+      case "teacher":
         return <Navigate to="/teacher" replace />;
-      case 'student':
+      case "student":
         return <Navigate to="/student" replace />;
       default:
         return <Navigate to="/login" replace />;
@@ -94,7 +106,7 @@ const App = () => (
         <AppProvider>
           <TooltipProvider>
             <Toaster />
-            <Sonner />
+            <Sonner position="top-right" />
             <Routes>
               <Route path="/login" element={<LoginRedirect />} />
               <Route path="/signup" element={<SignupRedirect />} />
@@ -102,7 +114,7 @@ const App = () => (
               <Route
                 path="/teacher/*"
                 element={
-                  <ProtectedRoute allowedRoles={['teacher']}>
+                  <ProtectedRoute allowedRoles={["teacher"]}>
                     <TeacherDashboard />
                   </ProtectedRoute>
                 }
@@ -110,7 +122,7 @@ const App = () => (
               <Route
                 path="/student/*"
                 element={
-                  <ProtectedRoute allowedRoles={['student']}>
+                  <ProtectedRoute allowedRoles={["student"]}>
                     <StudentDashboard />
                   </ProtectedRoute>
                 }
@@ -118,7 +130,7 @@ const App = () => (
               <Route
                 path="/hod/*"
                 element={
-                  <ProtectedRoute allowedRoles={['hod']}>
+                  <ProtectedRoute allowedRoles={["hod"]}>
                     <HODDashboard />
                   </ProtectedRoute>
                 }
