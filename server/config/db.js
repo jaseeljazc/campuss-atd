@@ -1,18 +1,25 @@
-const mongoose = require('mongoose');
-const env = require('./env');
-const logger = require('./logger');
+const mongoose = require("mongoose");
+const env = require("./env");
+const logger = require("./logger");
+
+let isConnected = false;
 
 async function connectDB() {
+  if (isConnected) {
+    return;
+  }
+
   try {
-    await mongoose.connect(env.mongoUri, {
-      autoIndex: env.nodeEnv !== 'production',
+    const db = await mongoose.connect(env.mongoUri, {
+      autoIndex: env.nodeEnv !== "production",
     });
-    logger.info('Connected to MongoDB');
+
+    isConnected = db.connections[0].readyState;
+    logger.info("Connected to MongoDB");
   } catch (err) {
-    logger.error('MongoDB connection error', { error: err.message });
+    logger.error("MongoDB connection error", { error: err.message });
     process.exit(1);
   }
 }
 
 module.exports = connectDB;
-
