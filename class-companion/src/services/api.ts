@@ -233,6 +233,16 @@ class ApiService {
     return response.data;
   }
 
+  async deleteCollegeLeave(date: string) {
+    const response = await this.api.delete(`/college-leave/${date}`);
+    return response.data;
+  }
+
+  async deleteClassLeave(semester: number, date: string) {
+    const response = await this.api.delete(`/class-leave/${semester}/${date}`);
+    return response.data;
+  }
+
   // Analytics endpoints
   async getLowAttendanceStudents(filters?: {
     semester?: string;

@@ -112,6 +112,47 @@ class LeaveService {
 
     return collegeLeaves;
   }
+
+  // ============ DELETE CLASS LEAVE ============
+
+  async deleteClassLeave(semester, date) {
+    const department = "Computer Science";
+
+    const classLeave = await ClassLeave.findOneAndDelete({
+      department,
+      semester,
+      date: date,
+    });
+
+    if (!classLeave) {
+      throw new Error(
+        `Class leave not found for Semester ${semester} on ${date}`,
+      );
+    }
+
+    logger.info(`Class leave deleted: Semester ${semester} - ${date}`);
+
+    return classLeave;
+  }
+
+  // ============ DELETE COLLEGE LEAVE ============
+
+  async deleteCollegeLeave(date) {
+    const department = "Computer Science";
+
+    const collegeLeave = await CollegeLeave.findOneAndDelete({
+      department,
+      date: date,
+    });
+
+    if (!collegeLeave) {
+      throw new Error(`College leave not found for ${date}`);
+    }
+
+    logger.info(`College leave deleted: ${date}`);
+
+    return collegeLeave;
+  }
 }
 
 module.exports = new LeaveService();

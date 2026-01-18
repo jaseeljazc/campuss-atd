@@ -77,6 +77,7 @@ interface AppContextType {
     reason: string,
   ) => Promise<void>;
   markCollegeLeave: (date: string, reason: string) => Promise<void>;
+  removeClassLeave: (semester: number, date: string) => Promise<void>;
   removeCollegeLeave: (date: string) => Promise<void>;
   isCollegeLeave: (date: string) => boolean;
   isClassLeave: (date: string, semester: number) => boolean;
@@ -328,11 +329,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     [user, refreshData],
   );
 
-  const removeCollegeLeave = useCallback(async (date: string) => {
-    // Note: Backend doesn't have delete endpoint for college leave
-    // This would need to be implemented or handled differently
-    toast.info("College leave removal not yet implemented");
-  }, []);
+  // Remove Class Leave (semester-specific)
+  const removeClassLeave = useCallback(
+    async (semester: number, date: string) => {
+      if (!user) return;
+      try {
+        await apiService.deleteClassLeave(semester, date);
+        toast.success(
+          `Class leave removed for Semester ${semester} successfully`,
+        );
+        await refreshData();
+      } catch (error: any) {
+        const message =
+          error.response?.data?.error || "Failed to remove class leave";
+        toast.error(message);
+      }
+    },
+    [user, refreshData],
+  );
+
+  // Remove College Leave (global)
+  const removeCollegeLeave = useCallback(
+    async (date: string) => {
+      if (!user) return;
+      try {
+        await apiService.deleteCollegeLeave(date);
+        toast.success("College leave removed successfully");
+        await refreshData();
+      } catch (error: any) {
+        const message =
+          error.response?.data?.error || "Failed to remove college leave";
+        toast.error(message);
+      }
+    },
+    [user, refreshData],
+  );
 
   const isCollegeLeave = useCallback(
     (date: string): boolean => {
@@ -364,6 +395,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         deleteAttendance,
         markClassLeave,
         markCollegeLeave,
+        removeClassLeave,
         removeCollegeLeave,
         isCollegeLeave,
         isClassLeave,

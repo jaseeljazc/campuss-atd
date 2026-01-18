@@ -46,4 +46,18 @@ router.get(
   leaveController.getCollegeLeaves,
 );
 
+router.delete(
+  "/class-leave/:semester/:date",
+  authenticate,
+  requireRole([ROLES.HOD]),
+  leaveController.deleteClassLeave,
+);
+
+router.delete(
+  "/college-leave/:date",
+  authenticate,
+  requireRole([ROLES.HOD]),
+  leaveController.deleteCollegeLeave,
+);
+
 module.exports = router;

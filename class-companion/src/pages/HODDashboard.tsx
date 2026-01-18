@@ -49,6 +49,8 @@ export function HODDashboard() {
     students,
     markClassLeave,
     markCollegeLeave,
+    removeClassLeave,
+    removeCollegeLeave,
     isCollegeLeave,
     isClassLeave,
   } = useApp();
@@ -144,6 +146,30 @@ export function HODDashboard() {
       console.error("Error marking college leave:", error);
     } finally {
       setIsMarkingCollegeLeave(false);
+    }
+  };
+
+  // Handle college leave unmarking
+  const handleUnmarkCollegeLeave = async () => {
+    setIsMarkingCollegeLeave(true);
+    try {
+      await removeCollegeLeave(dateStr);
+    } catch (error) {
+      console.error("Error unmarking college leave:", error);
+    } finally {
+      setIsMarkingCollegeLeave(false);
+    }
+  };
+
+  // Handle class leave unmarking
+  const handleUnmarkClassLeave = async () => {
+    setIsMarkingClassLeave(true);
+    try {
+      await removeClassLeave(selectedSemester, dateStr);
+    } catch (error) {
+      console.error("Error unmarking class leave:", error);
+    } finally {
+      setIsMarkingClassLeave(false);
     }
   };
 
@@ -259,26 +285,33 @@ export function HODDashboard() {
                     {/* Class Leave Button (semester-specific) */}
                     <Button
                       variant="outline"
-                      onClick={() => setShowClassLeaveDialog(true)}
-                      disabled={isAlreadyClassLeave || isAlreadyCollegeLeave}
-                      className="w-full sm:w-auto"
+                      onClick={
+                        isAlreadyClassLeave
+                          ? handleUnmarkClassLeave
+                          : () => setShowClassLeaveDialog(true)
+                      }
+                      disabled={isAlreadyCollegeLeave}
+                      className="w-full sm:w-auto cursor-pointer mb-2 sm:mb-0"
                     >
                       <AlertTriangle className="mr-2 h-4 w-4" />
                       {isAlreadyClassLeave
-                        ? "Already Class Leave"
+                        ? "Unmark Class Leave"
                         : "Mark as Class Leave"}
                     </Button>
 
                     {/* College Leave Button (global) */}
                     <Button
                       variant="outline"
-                      onClick={() => setShowCollegeLeaveDialog(true)}
-                      disabled={isAlreadyCollegeLeave}
+                      onClick={
+                        isAlreadyCollegeLeave
+                          ? handleUnmarkCollegeLeave
+                          : () => setShowCollegeLeaveDialog(true)
+                      }
                       className="w-full sm:w-auto"
                     >
                       <Shield className="mr-2 h-4 w-4" />
                       {isAlreadyCollegeLeave
-                        ? "Already College Leave"
+                        ? "Unmark College Leave"
                         : "Mark as College Leave"}
                     </Button>
                   </div>

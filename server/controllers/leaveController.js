@@ -60,6 +60,37 @@ class LeaveController {
       next(error);
     }
   }
+
+  async deleteClassLeave(req, res, next) {
+    try {
+      const { semester, date } = req.params;
+      const classLeave = await leaveService.deleteClassLeave(
+        parseInt(semester),
+        date,
+      );
+      res.status(200).json({
+        message: "Class leave deleted successfully",
+        data: classLeave,
+      });
+    } catch (error) {
+      logger.error(`Delete class leave error: ${error.message}`);
+      next(error);
+    }
+  }
+
+  async deleteCollegeLeave(req, res, next) {
+    try {
+      const { date } = req.params;
+      const collegeLeave = await leaveService.deleteCollegeLeave(date);
+      res.status(200).json({
+        message: "College leave deleted successfully",
+        data: collegeLeave,
+      });
+    } catch (error) {
+      logger.error(`Delete college leave error: ${error.message}`);
+      next(error);
+    }
+  }
 }
 
 module.exports = new LeaveController();
