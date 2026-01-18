@@ -255,7 +255,7 @@ export function HODDashboard() {
 
                 {/* Leave Buttons - HOD Only */}
                 {user?.role === "hod" && (
-                  <div className="flex gap-2 flex-shrink-0">
+                  <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0 pt-5 mx-auto">
                     {/* Class Leave Button (semester-specific) */}
                     <Button
                       variant="outline"
