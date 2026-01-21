@@ -1,4 +1,6 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, "../.env") });
+
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const Attendance = require("../models/Attendance");
@@ -92,7 +94,7 @@ async function seedAttendance() {
       .sort((a, b) => a - b)
       .forEach((sem) => {
         console.log(
-          `   Semester ${sem}: ${studentsBySemester[sem].length} students`
+          `   Semester ${sem}: ${studentsBySemester[sem].length} students`,
         );
       });
 
@@ -102,7 +104,7 @@ async function seedAttendance() {
     endDate.setHours(0, 0, 0, 0); // Reset to start of day
 
     console.log(
-      `\n📅 Date range: ${startDate.toDateString()} to ${endDate.toDateString()}`
+      `\n📅 Date range: ${startDate.toDateString()} to ${endDate.toDateString()}`,
     );
 
     // Get all working days
@@ -162,7 +164,7 @@ async function seedAttendance() {
             // Log progress every 50 records
             if (totalCreated % 50 === 0) {
               console.log(
-                `   ✅ Created ${totalCreated} attendance records...`
+                `   ✅ Created ${totalCreated} attendance records...`,
               );
             }
           } catch (error) {
@@ -172,7 +174,7 @@ async function seedAttendance() {
             } else {
               totalErrors++;
               logger.error(
-                `Error creating attendance for ${dateStr}, Sem ${semester}, Period ${period}: ${error.message}`
+                `Error creating attendance for ${dateStr}, Sem ${semester}, Period ${period}: ${error.message}`,
               );
             }
           }
@@ -197,7 +199,7 @@ async function seedAttendance() {
     console.log(`\n👥 Students:`);
     semesters.forEach((sem) => {
       console.log(
-        `   Semester ${sem}: ${studentsBySemester[sem].length} students`
+        `   Semester ${sem}: ${studentsBySemester[sem].length} students`,
       );
     });
     console.log(`\n📊 Attendance Records:`);

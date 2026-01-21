@@ -165,8 +165,10 @@ export function StudentAttendanceCalendar({
       )
     : null;
 
-  const isCollegeLeave = !!collegeLeaveForDate;
-  const isClassLeave = !!classLeaveForDate;
+  const isCollegeLeave =
+    !!collegeLeaveForDate || selectedDateRecord?.status === "college-leave";
+  const isClassLeave =
+    !!classLeaveForDate || selectedDateRecord?.status === "class-leave";
 
   if (isLoading) {
     return (
@@ -253,7 +255,7 @@ export function StudentAttendanceCalendar({
               collegeLeave:
                 "bg-blue-100 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 italic",
               classLeave:
-                "bg-blue-100 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 italic",
+                "bg-yellow-100 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-400 italic",
             }}
           />
         </div>
@@ -273,7 +275,7 @@ export function StudentAttendanceCalendar({
             <span>College Leave</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-950/20 border border-blue-700" />
+            <div className="w-4 h-4 rounded bg-yellow-100 dark:bg-yellow-950/20 border border-yellow-700" />
             <span>Class Leave</span>
           </div>
         </div>
@@ -288,18 +290,17 @@ export function StudentAttendanceCalendar({
         {isCollegeLeave ? (
           <div className="text-center py-8">
             <StatusBadge variant="college-leave" size="lg">
-              College Leave
+              {collegeLeaveForDate ? "College Leave" : "No Attendance Marked"}
             </StatusBadge>
-            {collegeLeaveForDate && (
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium text-foreground mb-1">
-                  Reason:
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {collegeLeaveForDate.reason}
-                </p>
-              </div>
-            )}
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+              <p className="text-sm font-medium text-foreground mb-1">
+                Reason:
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {collegeLeaveForDate?.reason ||
+                  "No classes/attendance marked for this day"}
+              </p>
+            </div>
             <p className="text-sm text-muted-foreground mt-2">
               Applies to all semesters
             </p>

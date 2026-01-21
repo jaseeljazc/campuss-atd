@@ -34,7 +34,7 @@ class AttendanceService {
       existingAttendance.teacherId = teacherId;
       await existingAttendance.save();
       logger.info(
-        `Attendance updated: CS - Semester ${semester} - ${date} - Period ${period} by ${teacher.email}`
+        `Attendance updated: CS - Semester ${semester} - ${date} - Period ${period} by ${teacher.email}`,
       );
       return existingAttendance;
     }
@@ -48,7 +48,7 @@ class AttendanceService {
 
     if (students.length !== studentIds.length) {
       throw new Error(
-        "Some students not found or do not belong to this department"
+        "Some students not found or do not belong to this department",
       );
     }
 
@@ -64,7 +64,7 @@ class AttendanceService {
     await attendance.save();
 
     logger.info(
-      `Attendance marked: ${department} - Semester ${semester} - ${date} - Period ${period} by ${teacher.email}`
+      `Attendance marked: ${department} - Semester ${semester} - ${date} - Period ${period} by ${teacher.email}`,
     );
 
     return attendance;
@@ -87,7 +87,7 @@ class AttendanceService {
 
     if (students.length !== studentIds.length) {
       throw new Error(
-        "Some students not found or do not belong to this department"
+        "Some students not found or do not belong to this department",
       );
     }
 
@@ -142,8 +142,41 @@ class AttendanceService {
     // Calculate statistics
     const semesterStats = await this.calculateStudentStats(
       studentId,
-      filters.semester
+      filters.semester,
     );
+
+    // Get Active Date Metadata for Calendar Rendering
+    // 1. Global Active Dates (Any attendance in department)
+    // 2. Semester Active Dates (Attendance for this semester)
+
+    // Fetch distinct dates for valid semesters to build metadata
+    const semesterMetaQuery = {};
+    if (Object.keys(query.date || {}).length > 0) {
+      semesterMetaQuery.date = query.date;
+    }
+    if (filters.semester) {
+      semesterMetaQuery.semester = parseInt(filters.semester);
+    }
+
+    const activeDatesPerSemester = await Attendance.aggregate([
+      { $match: semesterMetaQuery },
+      {
+        $group: {
+          _id: "$semester",
+          dates: {
+            $addToSet: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+          },
+        },
+      },
+    ]);
+
+    const semesterActiveDates = {};
+    const globalActiveDates = new Set();
+
+    activeDatesPerSemester.forEach((item) => {
+      semesterActiveDates[item._id] = item.dates.sort();
+      item.dates.forEach((d) => globalActiveDates.add(d));
+    });
 
     return {
       student: {
@@ -154,6 +187,10 @@ class AttendanceService {
       },
       records: attendanceRecords,
       statistics: semesterStats,
+      metadata: {
+        globalActiveDates: Array.from(globalActiveDates).sort(),
+        semesterActiveDates,
+      },
     };
   }
 
@@ -187,86 +224,85 @@ class AttendanceService {
       throw new Error("Student not found");
     }
 
+    // 1. Get Active Dates Per Semester (The Denominator)
+    const semesterQuery = {};
+    if (semester) {
+      semesterQuery.semester = parseInt(semester);
+    }
+
+    const activeDatesPerSemester = await Attendance.aggregate([
+      { $match: semesterQuery },
+      {
+        $group: {
+          _id: "$semester",
+          dates: {
+            $addToSet: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+          },
+        },
+      },
+    ]);
+
+    const semesterActiveDatesMap = {};
+    activeDatesPerSemester.forEach((item) => {
+      semesterActiveDatesMap[item._id] = new Set(item.dates);
+    });
+
+    // 2. Get Student's Records (The Numerator Data)
     const query = {
       department: student.department,
       "records.studentId": studentId,
     };
-
     if (semester) {
       query.semester = parseInt(semester);
     }
 
-    const attendanceRecords = await Attendance.find(query);
-    const collegeLeaves = await CollegeLeave.find({
-      date: {
-        $gte:
-          attendanceRecords.length > 0
-            ? attendanceRecords[attendanceRecords.length - 1].date
-            : new Date(),
-      },
-    });
+    const studentRecords = await Attendance.find(query);
 
-    const leaveDates = new Set(
-      collegeLeaves.map((leave) => leave.date.toISOString().split("T")[0])
-    );
-
-    // Group by date and semester
-    const dateMap = new Map();
-    attendanceRecords.forEach((record) => {
-      const dateKey = record.date.toISOString().split("T")[0];
-      const semesterKey = record.semester;
-
-      if (!dateMap.has(dateKey)) {
-        dateMap.set(dateKey, {});
-      }
-      if (!dateMap.get(dateKey)[semesterKey]) {
-        dateMap.get(dateKey)[semesterKey] = { present: 0, absent: 0 };
-      }
-
-      const studentRecord = record.records.find(
-        (r) => r.studentId.toString() === studentId.toString()
-      );
-      if (studentRecord) {
-        if (studentRecord.status === ATTENDANCE_STATUS.PRESENT) {
-          dateMap.get(dateKey)[semesterKey].present += 1;
-        } else {
-          dateMap.get(dateKey)[semesterKey].absent += 1;
-        }
-      }
-    });
-
-    // Calculate statistics per semester
+    // 3. Calculate Stats
     const semesterStats = {};
-    dateMap.forEach((semesters, date) => {
-      if (leaveDates.has(date)) {
-        return; // Skip college leave days
+
+    Object.keys(semesterActiveDatesMap).forEach((sem) => {
+      if (!semesterStats[sem]) {
+        semesterStats[sem] = { totalDays: 0, presentDays: 0, absentDays: 0 };
       }
 
-      Object.keys(semesters).forEach((sem) => {
-        if (!semesterStats[sem]) {
-          semesterStats[sem] = { totalDays: 0, presentDays: 0, absentDays: 0 };
-        }
+      const activeDates = semesterActiveDatesMap[sem];
+      semesterStats[sem].totalDays = activeDates.size;
 
-        const { present, absent } = semesters[sem];
-        const totalPeriods = present + absent;
+      const relevantRecords = studentRecords.filter((r) => r.semester == sem);
 
-        if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-          semesterStats[sem].totalDays += 1;
-          if (present >= DAY_PRESENT_THRESHOLD) {
-            semesterStats[sem].presentDays += 1;
-          } else {
-            semesterStats[sem].absentDays += 1;
+      activeDates.forEach((dateStr) => {
+        const dailyRecords = relevantRecords.filter(
+          (r) => r.date.toISOString().split("T")[0] === dateStr,
+        );
+
+        let presentPeriods = 0;
+        // Check if student was present in enough periods
+        dailyRecords.forEach((rec) => {
+          const studentRecord = rec.records.find(
+            (r) => r.studentId.toString() === studentId.toString(),
+          );
+          if (
+            studentRecord &&
+            studentRecord.status === ATTENDANCE_STATUS.PRESENT
+          ) {
+            presentPeriods++;
           }
+        });
+
+        if (presentPeriods >= DAY_PRESENT_THRESHOLD) {
+          semesterStats[sem].presentDays += 1;
+        } else {
+          semesterStats[sem].absentDays += 1;
         }
       });
-    });
 
-    // Calculate percentages
-    Object.keys(semesterStats).forEach((sem) => {
-      const stats = semesterStats[sem];
-      stats.attendancePercentage =
-        stats.totalDays > 0
-          ? ((stats.presentDays / stats.totalDays) * 100).toFixed(2)
+      semesterStats[sem].attendancePercentage =
+        semesterStats[sem].totalDays > 0
+          ? (
+              (semesterStats[sem].presentDays / semesterStats[sem].totalDays) *
+              100
+            ).toFixed(2)
           : 0;
     });
 

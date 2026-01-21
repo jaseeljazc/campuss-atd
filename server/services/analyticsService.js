@@ -54,11 +54,15 @@ class AnalyticsService {
     }
 
     const attendanceRecords = await Attendance.find(query);
-    const collegeLeaves = await CollegeLeave.find({});
 
-    const leaveDates = new Set(
-      collegeLeaves.map((leave) => leave.date.toISOString().split("T")[0]),
-    );
+    // Build active dates set per semester
+    const semesterActiveDates = {};
+    attendanceRecords.forEach((record) => {
+      const dateKey = record.date.toISOString().split("T")[0];
+      const sem = record.semester;
+      if (!semesterActiveDates[sem]) semesterActiveDates[sem] = new Set();
+      semesterActiveDates[sem].add(dateKey);
+    });
 
     // Get all students (all Computer Science)
     const studentQuery = { role: ROLES.STUDENT };
@@ -95,35 +99,54 @@ class AnalyticsService {
 
     // Calculate statistics per semester
     const semesterStats = {};
-    students.forEach((student) => {
-      dateMap.forEach((semesters, date) => {
-        if (leaveDates.has(date)) {
-          return; // Skip college leave days
-        }
 
-        Object.keys(semesters).forEach((sem) => {
-          if (!semesterStats[sem]) {
-            semesterStats[sem] = {
-              totalStudents: students.filter((s) =>
-                filters.semester ? true : s.department === student.department,
-              ).length,
-              totalDays: 0,
-              averageAttendance: 0,
-              periodCompletion: {},
-            };
-          }
+    // We iterate semesterActiveDates to ensure we count "Active Days" correctly
+    // And we aggregate stats for all students in that semester
 
-          const studentData = semesters[sem][student._id.toString()];
-          if (studentData) {
-            const { present, absent } = studentData;
-            const totalPeriods = present + absent;
+    // Initialize stats for all semesters found in active dates (or from students?)
+    // Better to use active dates keys
+    Object.keys(semesterActiveDates).forEach((sem) => {
+      // Filter students belonging to this semester?
+      // Actually, the summary might be for the whole department, broken down by semester.
+      // So we filter students by semester.
 
-            if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-              semesterStats[sem].totalDays += 1;
-            }
+      const semesterStudents = students.filter((s) => s.semester == sem);
+
+      semesterStats[sem] = {
+        totalStudents: semesterStudents.length,
+        totalDays: semesterActiveDates[sem].size,
+        averageAttendance: 0,
+        periodCompletion: {},
+      };
+
+      // Calculate average attendance
+      // Sum of (Student Present Days / Total Days) / Total Students
+
+      let totalStudentAttendancePercentage = 0;
+      const activeDates = Array.from(semesterActiveDates[sem]);
+
+      semesterStudents.forEach((student) => {
+        let presentDays = 0;
+        activeDates.forEach((dateStr) => {
+          const dayData = dateMap.get(dateStr)?.[sem]?.[student._id.toString()];
+          if (dayData && dayData.present >= DAY_PRESENT_THRESHOLD) {
+            presentDays++;
           }
         });
+
+        const percentage =
+          semesterStats[sem].totalDays > 0
+            ? (presentDays / semesterStats[sem].totalDays) * 100
+            : 0;
+        totalStudentAttendancePercentage += percentage;
       });
+
+      semesterStats[sem].averageAttendance =
+        semesterStudents.length > 0
+          ? (
+              totalStudentAttendancePercentage / semesterStudents.length
+            ).toFixed(2)
+          : 0;
     });
 
     // Calculate period completion
@@ -140,6 +163,7 @@ class AnalyticsService {
       periodMap.get(key).count += 1;
     });
 
+    // Ensure all semesters are covered for period completion
     Object.keys(semesterStats).forEach((sem) => {
       const periods = [1, 2, 3, 4, 5];
       periods.forEach((period) => {
@@ -160,6 +184,33 @@ class AnalyticsService {
       return {};
     }
 
+    // 1. Get Active Dates Per Semester (The Denominator)
+    const semesterQuery = {};
+    if (semester) {
+      semesterQuery.semester = parseInt(semester);
+    }
+
+    // We can't use aggregate easily here if we need to filter by global/semester active dates derived from records only?
+    // Actually, distinct dates per semester is enough for "Semester Active Days".
+
+    const activeDatesPerSemester = await Attendance.aggregate([
+      { $match: semesterQuery },
+      {
+        $group: {
+          _id: "$semester",
+          dates: {
+            $addToSet: { $dateToString: { format: "%Y-%m-%d", date: "$date" } },
+          },
+        },
+      },
+    ]);
+
+    const semesterActiveDatesMap = {};
+    activeDatesPerSemester.forEach((item) => {
+      semesterActiveDatesMap[item._id] = new Set(item.dates);
+    });
+
+    // 2. Get Student's Records (The Numerator Data)
     const query = {
       "records.studentId": studentId,
     };
@@ -169,66 +220,53 @@ class AnalyticsService {
     }
 
     const attendanceRecords = await Attendance.find(query);
-    const collegeLeaves = await CollegeLeave.find({});
 
-    const leaveDates = new Set(
-      collegeLeaves.map((leave) => leave.date.toISOString().split("T")[0]),
-    );
-
-    const dateMap = new Map();
-    attendanceRecords.forEach((record) => {
-      const dateKey = record.date.toISOString().split("T")[0];
-      const semesterKey = record.semester;
-
-      if (!dateMap.has(dateKey)) {
-        dateMap.set(dateKey, {});
-      }
-      if (!dateMap.get(dateKey)[semesterKey]) {
-        dateMap.get(dateKey)[semesterKey] = { present: 0, absent: 0 };
-      }
-
-      const studentRecord = record.records.find(
-        (r) => r.studentId.toString() === studentId.toString(),
-      );
-      if (studentRecord) {
-        if (studentRecord.status === ATTENDANCE_STATUS.PRESENT) {
-          dateMap.get(dateKey)[semesterKey].present += 1;
-        } else {
-          dateMap.get(dateKey)[semesterKey].absent += 1;
-        }
-      }
-    });
-
+    // 3. Calculate Stats
     const semesterStats = {};
-    dateMap.forEach((semesters, date) => {
-      if (leaveDates.has(date)) {
-        return;
+
+    Object.keys(semesterActiveDatesMap).forEach((sem) => {
+      if (!semesterStats[sem]) {
+        semesterStats[sem] = { totalDays: 0, presentDays: 0, absentDays: 0 };
       }
 
-      Object.keys(semesters).forEach((sem) => {
-        if (!semesterStats[sem]) {
-          semesterStats[sem] = { totalDays: 0, presentDays: 0, absentDays: 0 };
-        }
+      const activeDates = semesterActiveDatesMap[sem];
+      semesterStats[sem].totalDays = activeDates.size;
 
-        const { present, absent } = semesters[sem];
-        const totalPeriods = present + absent;
+      const relevantRecords = attendanceRecords.filter(
+        (r) => r.semester == sem,
+      );
 
-        if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-          semesterStats[sem].totalDays += 1;
-          if (present >= DAY_PRESENT_THRESHOLD) {
-            semesterStats[sem].presentDays += 1;
-          } else {
-            semesterStats[sem].absentDays += 1;
+      activeDates.forEach((dateStr) => {
+        const dailyRecords = relevantRecords.filter(
+          (r) => r.date.toISOString().split("T")[0] === dateStr,
+        );
+
+        let presentPeriods = 0;
+        dailyRecords.forEach((rec) => {
+          const studentRecord = rec.records.find(
+            (r) => r.studentId.toString() === studentId.toString(),
+          );
+          if (
+            studentRecord &&
+            studentRecord.status === ATTENDANCE_STATUS.PRESENT
+          ) {
+            presentPeriods++;
           }
+        });
+
+        if (presentPeriods >= DAY_PRESENT_THRESHOLD) {
+          semesterStats[sem].presentDays += 1;
+        } else {
+          semesterStats[sem].absentDays += 1;
         }
       });
-    });
 
-    Object.keys(semesterStats).forEach((sem) => {
-      const stats = semesterStats[sem];
-      stats.attendancePercentage =
-        stats.totalDays > 0
-          ? ((stats.presentDays / stats.totalDays) * 100).toFixed(2)
+      semesterStats[sem].attendancePercentage =
+        semesterStats[sem].totalDays > 0
+          ? (
+              (semesterStats[sem].presentDays / semesterStats[sem].totalDays) *
+              100
+            ).toFixed(2)
           : 0;
     });
 
@@ -252,13 +290,18 @@ class AnalyticsService {
     }
 
     const attendanceRecords = await Attendance.find(attendanceQuery).lean();
-    const collegeLeaves = await CollegeLeave.find({}).lean();
 
-    const leaveDates = new Set(
-      collegeLeaves.map(
-        (leave) => new Date(leave.date).toISOString().split("T")[0],
-      ),
-    );
+    // We do NOT use CollegeLeave anymore for count.
+
+    // Build a map of semester active dates
+    // Semester -> Set<DateString>
+    const semesterActiveDates = {};
+    attendanceRecords.forEach((record) => {
+      const dateKey = new Date(record.date).toISOString().split("T")[0];
+      const sem = record.semester;
+      if (!semesterActiveDates[sem]) semesterActiveDates[sem] = new Set();
+      semesterActiveDates[sem].add(dateKey);
+    });
 
     // Build a map of student attendance data
     const studentAttendanceMap = new Map();
@@ -267,10 +310,8 @@ class AnalyticsService {
       const dateKey = new Date(record.date).toISOString().split("T")[0];
       const semesterKey = record.semester;
 
-      // Skip college leave days
-      if (leaveDates.has(dateKey)) {
-        return;
-      }
+      // Note: We don't skip "College Leave" days anymore because "College Leave" is implicitly defined
+      // by the ABSENCE of attendance records. If a record exists here, it is by definition NOT a College Leave.
 
       record.records.forEach((rec) => {
         const studentId = rec.studentId.toString();
@@ -316,25 +357,43 @@ class AnalyticsService {
       if (!targetSemester) return; // Skip if student has no semester assigned
 
       const semesterKey = targetSemester.toString();
+      // Data specific to this student
       const semesterData = studentData[semesterKey] || {};
 
-      let totalDays = 0;
+      // Calculate Total Days based on SEMESTER ACTIVE DATES loop, not just student records loop
+      // This ensures if a student has NO record on an active day (e.g. absent and record missing? unlikely if full class), it still counts.
+      // But more importantly, it aligns with "active days" definition.
+
+      const activeDates = semesterActiveDates[targetSemester]
+        ? Array.from(semesterActiveDates[targetSemester])
+        : [];
+
+      let totalDays = activeDates.length;
       let presentDays = 0;
       let absentDays = 0;
 
-      Object.values(semesterData).forEach((dayData) => {
-        const totalPeriods = dayData.present + dayData.absent;
-        if (totalPeriods >= DAY_PRESENT_THRESHOLD) {
-          totalDays += 1;
-          if (dayData.present >= DAY_PRESENT_THRESHOLD) {
-            presentDays += 1;
+      // Iterate active dates to check presence
+      activeDates.forEach((dateStr) => {
+        const dayDataForStudent = semesterData[dateStr];
+        if (dayDataForStudent) {
+          const totalPeriods =
+            dayDataForStudent.present + dayDataForStudent.absent;
+          // If student has record entries equal to threshold?
+          // Logic: If present >= threshold -> Present
+          // Else -> Absent
+          if (dayDataForStudent.present >= DAY_PRESENT_THRESHOLD) {
+            presentDays++;
           } else {
-            absentDays += 1;
+            absentDays++;
           }
+        } else {
+          // Student has NO record on an active day.
+          // Assume Absent?
+          absentDays++;
         }
       });
 
-      // STRICT: Exclude students with no valid attendance days
+      // If student has 0 active days, exclude?
       if (totalDays === 0) {
         return;
       }
