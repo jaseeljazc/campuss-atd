@@ -7,6 +7,8 @@ const { validate } = require("../middlewares/validateMiddleware");
 const {
   lowAttendanceSchema,
   semesterSummarySchema,
+  getStudentsAttendanceSchema,
+  getStudentAttendanceCalendarSchema,
 } = require("../validators/analyticsValidators");
 const { ROLES } = require("../utils/constants");
 
@@ -30,6 +32,7 @@ router.get(
   "/students-attendance",
   authenticate,
   requireRole([ROLES.HOD, ROLES.TEACHER]),
+  validate(getStudentsAttendanceSchema),
   analyticsController.getStudentsAttendance,
 );
 
@@ -37,6 +40,7 @@ router.get(
   "/student-attendance-calendar/:studentId",
   authenticate,
   requireRole([ROLES.HOD, ROLES.TEACHER, ROLES.STUDENT]),
+  validate(getStudentAttendanceCalendarSchema),
   analyticsController.getStudentAttendanceCalendar,
 );
 

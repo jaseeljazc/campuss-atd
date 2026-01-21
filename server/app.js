@@ -1,14 +1,15 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
-const rateLimit = require('express-rate-limit');
+const express = require("express");
+const cors = require("cors");
+const helmet = require("helmet");
+const morgan = require("morgan");
+const cookieParser = require("cookie-parser");
+const rateLimit = require("express-rate-limit");
+const compression = require("compression");
 
-const env = require('./config/env');
-const logger = require('./config/logger');
-const routes = require('./routes');
-const errorHandler = require('./middlewares/errorMiddleware');
+const env = require("./config/env");
+const logger = require("./config/logger");
+const routes = require("./routes");
+const errorHandler = require("./middlewares/errorMiddleware");
 
 const app = express();
 
@@ -16,22 +17,26 @@ const app = express();
 app.use(helmet());
 app.use(
   cors({
-    origin: env.clientOrigin === '*' ? '*' : env.clientOrigin,
+    origin: env.clientOrigin === "*" ? "*" : env.clientOrigin,
     credentials: true,
-  })
+  }),
 );
 
-// Body parsers
-app.use(express.json());
+// Compression
+app.use(compression());
+
+// Body parsers with size limits to prevent DoS
+app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
 
 // Logging
 app.use(
-  morgan('combined', {
+  morgan("combined", {
     stream: {
-      write: (message) => logger.http ? logger.http(message.trim()) : logger.info(message.trim()),
+      write: (message) =>
+        logger.http ? logger.http(message.trim()) : logger.info(message.trim()),
     },
-  })
+  }),
 );
 
 // Rate limiting (basic global rate limit)
@@ -42,19 +47,17 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-app.use('/auth', apiLimiter);
-app.use('/attendance', apiLimiter);
+app.use("/api", apiLimiter);
 
 // Health check
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok" });
 });
 
-// API routes
-app.use('/', routes);
+// API routes (Versioning)
+app.use("/api/v1", routes);
 
 // Centralized error handler
 app.use(errorHandler);
 
 module.exports = app;
-

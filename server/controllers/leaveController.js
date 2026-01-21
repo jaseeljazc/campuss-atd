@@ -1,5 +1,6 @@
 const leaveService = require("../services/leaveService");
 const logger = require("../config/logger");
+const ResponseHandler = require("../utils/responseHandler");
 
 class LeaveController {
   // ============ CLASS LEAVE ============
@@ -10,7 +11,11 @@ class LeaveController {
         req.body,
         req.user.id,
       );
-      res.status(201).json(classLeave);
+      ResponseHandler.created(
+        res,
+        classLeave,
+        "Class leave marked successfully",
+      );
     } catch (error) {
       logger.error(`Mark class leave error: ${error.message}`);
       next(error);
@@ -25,7 +30,11 @@ class LeaveController {
         endDate: req.query.endDate,
       };
       const classLeaves = await leaveService.getClassLeaves(filters);
-      res.status(200).json(classLeaves);
+      ResponseHandler.success(
+        res,
+        classLeaves,
+        "Class leaves retrieved successfully",
+      );
     } catch (error) {
       logger.error(`Get class leaves error: ${error.message}`);
       next(error);
@@ -40,7 +49,11 @@ class LeaveController {
         req.body,
         req.user.id,
       );
-      res.status(201).json(collegeLeave);
+      ResponseHandler.created(
+        res,
+        collegeLeave,
+        "College leave marked successfully",
+      );
     } catch (error) {
       logger.error(`Mark college leave error: ${error.message}`);
       next(error);
@@ -54,7 +67,11 @@ class LeaveController {
         endDate: req.query.endDate,
       };
       const collegeLeaves = await leaveService.getCollegeLeaves(filters);
-      res.status(200).json(collegeLeaves);
+      ResponseHandler.success(
+        res,
+        collegeLeaves,
+        "College leaves retrieved successfully",
+      );
     } catch (error) {
       logger.error(`Get college leaves error: ${error.message}`);
       next(error);
@@ -68,10 +85,11 @@ class LeaveController {
         parseInt(semester),
         date,
       );
-      res.status(200).json({
-        message: "Class leave deleted successfully",
-        data: classLeave,
-      });
+      ResponseHandler.success(
+        res,
+        classLeave,
+        "Class leave deleted successfully",
+      );
     } catch (error) {
       logger.error(`Delete class leave error: ${error.message}`);
       next(error);
@@ -82,10 +100,11 @@ class LeaveController {
     try {
       const { date } = req.params;
       const collegeLeave = await leaveService.deleteCollegeLeave(date);
-      res.status(200).json({
-        message: "College leave deleted successfully",
-        data: collegeLeave,
-      });
+      ResponseHandler.success(
+        res,
+        collegeLeave,
+        "College leave deleted successfully",
+      );
     } catch (error) {
       logger.error(`Delete college leave error: ${error.message}`);
       next(error);

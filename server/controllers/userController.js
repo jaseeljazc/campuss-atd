@@ -1,5 +1,6 @@
-const userService = require('../services/userService');
-const logger = require('../config/logger');
+const userService = require("../services/userService");
+const logger = require("../config/logger");
+const ResponseHandler = require("../utils/responseHandler");
 
 class UserController {
   async getAllUsers(req, res, next) {
@@ -9,7 +10,7 @@ class UserController {
         role: req.query.role,
       };
       const users = await userService.getAllUsers(filters);
-      res.status(200).json(users);
+      ResponseHandler.success(res, users, "Users retrieved successfully");
     } catch (error) {
       logger.error(`Get users error: ${error.message}`);
       next(error);
@@ -21,7 +22,7 @@ class UserController {
       const { id } = req.params;
       const { role } = req.body;
       const user = await userService.updateUserRole(id, role, req.user.role);
-      res.status(200).json(user);
+      ResponseHandler.success(res, user, "User role updated successfully");
     } catch (error) {
       logger.error(`Update user role error: ${error.message}`);
       next(error);

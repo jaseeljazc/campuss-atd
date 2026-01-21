@@ -1,11 +1,19 @@
-const attendanceService = require('../services/attendanceService');
-const logger = require('../config/logger');
+const attendanceService = require("../services/attendanceService");
+const logger = require("../config/logger");
+const ResponseHandler = require("../utils/responseHandler");
 
 class AttendanceController {
   async markAttendance(req, res, next) {
     try {
-      const attendance = await attendanceService.markAttendance(req.body, req.user.id);
-      res.status(201).json(attendance);
+      const attendance = await attendanceService.markAttendance(
+        req.body,
+        req.user.id,
+      );
+      ResponseHandler.created(
+        res,
+        attendance,
+        "Attendance marked successfully",
+      );
     } catch (error) {
       logger.error(`Mark attendance error: ${error.message}`);
       next(error);
@@ -20,9 +28,13 @@ class AttendanceController {
         id,
         records,
         req.user.id,
-        req.user.role
+        req.user.role,
       );
-      res.status(200).json(attendance);
+      ResponseHandler.success(
+        res,
+        attendance,
+        "Attendance updated successfully",
+      );
     } catch (error) {
       logger.error(`Update attendance error: ${error.message}`);
       next(error);
@@ -33,7 +45,7 @@ class AttendanceController {
     try {
       const { id } = req.params;
       const result = await attendanceService.deleteAttendance(id);
-      res.status(200).json(result);
+      ResponseHandler.success(res, result, "Attendance deleted successfully");
     } catch (error) {
       logger.error(`Delete attendance error: ${error.message}`);
       next(error);
@@ -48,8 +60,15 @@ class AttendanceController {
         startDate: req.query.startDate,
         endDate: req.query.endDate,
       };
-      const result = await attendanceService.getStudentAttendance(studentId, filters);
-      res.status(200).json(result);
+      const result = await attendanceService.getStudentAttendance(
+        studentId,
+        filters,
+      );
+      ResponseHandler.success(
+        res,
+        result,
+        "Student attendance retrieved successfully",
+      );
     } catch (error) {
       logger.error(`Get student attendance error: ${error.message}`);
       next(error);
@@ -64,8 +83,15 @@ class AttendanceController {
         startDate: req.query.startDate,
         endDate: req.query.endDate,
       };
-      const attendance = await attendanceService.getDepartmentAttendance(department, filters);
-      res.status(200).json(attendance);
+      const attendance = await attendanceService.getDepartmentAttendance(
+        department,
+        filters,
+      );
+      ResponseHandler.success(
+        res,
+        attendance,
+        "Department attendance retrieved successfully",
+      );
     } catch (error) {
       logger.error(`Get department attendance error: ${error.message}`);
       next(error);

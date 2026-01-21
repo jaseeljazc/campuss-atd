@@ -7,14 +7,28 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AppProvider } from "./context/AppContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { apiService } from "./services/api";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import { TeacherDashboard } from "./pages/TeacherDashboard";
-import { StudentDashboard } from "./pages/StudentDashboard";
-import { HODDashboard } from "./pages/HODDashboard";
-import NotFound from "./pages/NotFound";
+
+// Lazy load pages
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const TeacherDashboard = lazy(() =>
+  import("./pages/TeacherDashboard").then((module) => ({
+    default: module.TeacherDashboard,
+  })),
+);
+const StudentDashboard = lazy(() =>
+  import("./pages/StudentDashboard").then((module) => ({
+    default: module.StudentDashboard,
+  })),
+);
+const HODDashboard = lazy(() =>
+  import("./pages/HODDashboard").then((module) => ({
+    default: module.HODDashboard,
+  })),
+);
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
 
@@ -107,11 +121,6 @@ function AppContent() {
       setIsGlobalLoading(isLoading);
     });
 
-    // We don't have a direct unsubscribe method in apiService yet that returns a function,
-    // but setLoadingListener overwrites the listener.
-    // Ideally apiService should support multiple listeners or we rewrite it.
-    // For now, single listener is fine as this is the root app.
-
     return () => {
       apiService.setLoadingListener(() => {}); // clear listener on unmount
     };
@@ -125,36 +134,40 @@ function AppContent() {
             <Toaster />
             <Sonner position="top-right" />
             {isGlobalLoading && <PageLoader message="Loading data..." />}
-            <Routes>
-              <Route path="/login" element={<LoginRedirect />} />
-              <Route path="/signup" element={<SignupRedirect />} />
-              <Route path="/" element={<RootRedirect />} />
-              <Route
-                path="/teacher/*"
-                element={
-                  <ProtectedRoute allowedRoles={["teacher"]}>
-                    <TeacherDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/student/*"
-                element={
-                  <ProtectedRoute allowedRoles={["student"]}>
-                    <StudentDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/hod/*"
-                element={
-                  <ProtectedRoute allowedRoles={["hod"]}>
-                    <HODDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <Suspense
+              fallback={<PageLoader message="Loading application..." />}
+            >
+              <Routes>
+                <Route path="/login" element={<LoginRedirect />} />
+                <Route path="/signup" element={<SignupRedirect />} />
+                <Route path="/" element={<RootRedirect />} />
+                <Route
+                  path="/teacher/*"
+                  element={
+                    <ProtectedRoute allowedRoles={["teacher"]}>
+                      <TeacherDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/student/*"
+                  element={
+                    <ProtectedRoute allowedRoles={["student"]}>
+                      <StudentDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/hod/*"
+                  element={
+                    <ProtectedRoute allowedRoles={["hod"]}>
+                      <HODDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
           </TooltipProvider>
         </AppProvider>
       </AuthProvider>

@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "start:prod": "pm2 start ecosystem.config.js --env production",
     "dev": "nodemon server.js",
     "seed:hod": "node scripts/seedHOD.js",
     "seed:users": "node scripts/seedUsers.js",
@@ -15,6 +16,7 @@
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -32,4 +34,3 @@
     "nodemon": "^3.1.0"
   }
 }
-

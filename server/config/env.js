@@ -1,24 +1,26 @@
-const dotenv = require('dotenv');
+const dotenv = require("dotenv");
+const envSchema = require("./env.schema");
 
 dotenv.config();
 
-const env = {
-  nodeEnv: process.env.NODE_ENV || 'development',
-  port: process.env.PORT || 5000,
-  mongoUri: process.env.MONGO_URI || '',
-  jwtAccessSecret: process.env.JWT_ACCESS_SECRET || '',
-  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || '',
-  jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY || '15m',
-  jwtRefreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
-  clientOrigin: process.env.CLIENT_ORIGIN || '*',
-  logLevel: process.env.LOG_LEVEL || 'info',
-};
+// Parse and validate environment variables
+const parsedEnv = envSchema.safeParse(process.env);
 
-if (!env.mongoUri) {
-  // In real production you'd fail fast, here we just log a warning via console
-  // Logger is not yet wired here to avoid cyclic deps.
-  console.warn('MONGO_URI is not set. Set it in your .env file.');
+if (!parsedEnv.success) {
+  console.error("❌ Invalid environment variables:", parsedEnv.error.format());
+  process.exit(1);
 }
 
-module.exports = env;
+const env = {
+  nodeEnv: parsedEnv.data.NODE_ENV,
+  port: parsedEnv.data.PORT,
+  mongoUri: parsedEnv.data.MONGO_URI,
+  jwtAccessSecret: parsedEnv.data.JWT_ACCESS_SECRET,
+  jwtRefreshSecret: parsedEnv.data.JWT_REFRESH_SECRET,
+  jwtAccessExpiry: parsedEnv.data.JWT_ACCESS_EXPIRY,
+  jwtRefreshExpiry: parsedEnv.data.JWT_REFRESH_EXPIRY,
+  clientOrigin: parsedEnv.data.CLIENT_ORIGIN,
+  logLevel: parsedEnv.data.LOG_LEVEL,
+};
 
+module.exports = env;

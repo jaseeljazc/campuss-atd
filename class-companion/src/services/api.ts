@@ -3,6 +3,8 @@ import axios, { AxiosInstance, AxiosError } from "axios";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
+const API_VERSION = "/api/v1";
+
 class ApiService {
   private api: AxiosInstance;
   private activeRequestCount: number = 0;
@@ -10,7 +12,7 @@ class ApiService {
 
   constructor() {
     this.api = axios.create({
-      baseURL: API_BASE_URL,
+      baseURL: `${API_BASE_URL}${API_VERSION}`,
       headers: {
         "Content-Type": "application/json",
       },
@@ -35,11 +37,21 @@ class ApiService {
       },
     );
 
-    // Response interceptor to handle token refresh
+    // Response interceptor to handle token refresh and unwrap data
     this.api.interceptors.response.use(
       (response) => {
         this.activeRequestCount--;
         this.notifyLoading();
+
+        // Unwrap standard API response ({ success, data, message }) to just data
+        if (
+          response.data &&
+          response.data.success &&
+          response.data.data !== undefined
+        ) {
+          response.data = response.data.data;
+        }
+
         return response;
       },
       async (error: AxiosError) => {
@@ -58,21 +70,29 @@ class ApiService {
           try {
             const refreshToken = localStorage.getItem("refreshToken");
             if (refreshToken) {
+              // Note: Auth endpoints are also under /api/v1 now
               const response = await axios.post(
-                `${API_BASE_URL}/auth/refresh`,
+                `${API_BASE_URL}${API_VERSION}/auth/refresh`,
                 {
                   refreshToken,
                 },
               );
 
-              const { accessToken, refreshToken: newRefreshToken } =
-                response.data;
+              // Handle unwrapped response if the refresh endpoint also returns standardized response
+              let data = response.data;
+              if (data && data.success && data.data) {
+                data = data.data;
+              }
+
+              const { accessToken, refreshToken: newRefreshToken } = data;
               localStorage.setItem("accessToken", accessToken);
               if (newRefreshToken) {
                 localStorage.setItem("refreshToken", newRefreshToken);
               }
 
               originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+              // Important: We need to use the instance to retry, or axios directly but careful with baseURL
+              // Using helper which already has baseURL
               return this.api(originalRequest);
             }
           } catch (refreshError) {
