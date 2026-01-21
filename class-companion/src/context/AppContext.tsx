@@ -8,6 +8,7 @@ import React, {
 import { useAuth } from "./AuthContext";
 import { apiService } from "@/services/api";
 import { toast } from "sonner";
+import { UserRole } from "@/data/mockData";
 
 // Types matching backend responses
 export interface Student {
@@ -59,6 +60,10 @@ interface AppContextType {
   classLeaveDays: ClassLeaveDay[];
   collegeLeaveDays: CollegeLeaveDay[];
   isLoading: boolean;
+  currentRole: UserRole | null;
+  currentUserId: string | null;
+  setCurrentRole: (role: UserRole) => void;
+  setCurrentUserId: (id: string) => void;
   markAttendance: (data: {
     department: string;
     semester: number;
@@ -100,6 +105,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
     [],
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [currentRole, setCurrentRole] = useState<UserRole | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Transform backend attendance records to frontend format
   const transformAttendanceRecords = (
@@ -390,6 +397,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({
         classLeaveDays,
         collegeLeaveDays,
         isLoading,
+        currentRole,
+        currentUserId,
+        setCurrentRole,
+        setCurrentUserId,
         markAttendance,
         updateAttendance,
         deleteAttendance,
